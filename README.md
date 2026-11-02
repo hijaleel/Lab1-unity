@@ -39,3 +39,4 @@ Environment    Test       Status    Duration
 mkrzero        test_calc  PASSED    00:00:16.606
 =================================== 17 test cases: 17 succeeded in 00:00:16.606 ===================================
 ```
+
