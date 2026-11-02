@@ -1,58 +1,55 @@
-#include <stddef.h>
-
-#include "unity.h"
+#include <Arduino.h>
+#include <unity.h>
 #include "calc.h"
 
-#ifndef UNIT_TEST
-
-void test_add()
+void test_add(void)
 {
 	int output = add(10, 20);
 	TEST_ASSERT_EQUAL(30, output);
 }
 
-void test_sub()
+void test_sub(void)
 {
 	int output = sub(20, 10);
 	TEST_ASSERT_EQUAL(10, output);
 }
 
-void test_mul()
+void test_mul(void)
 {
 	int output = mul(10, 2);
 	TEST_ASSERT_EQUAL(20, output);
 }
 
-void test_mul_overflow()
+void test_mul_overflow(void)
 {
 	int output = mul(10000000, 999999999);
 	TEST_ASSERT_EQUAL(-1, output);
 }
 
-void test_mul_underflow()
+void test_mul_underflow(void)
 {
 	int output = mul(-10000000, 99999999);
 	TEST_ASSERT_EQUAL(-1, output);
 }
 
-void test_div()
+void test_div(void)
 {
 	int output = divide(10, 0);
 	TEST_ASSERT_EQUAL(0, output);
 }
 
-void test_mod()
+void test_mod(void)
 {
 	TEST_ASSERT_EQUAL(0, mod(10, 2));
 	TEST_ASSERT_EQUAL(1, mod(10, 3));
 }
 
-void test_power_two()
+void test_power_two(void)
 {
 	TEST_ASSERT_EQUAL(9, power_two(3));
 }
 
-void test_power_two_overflow()
+void test_power_two_overflow(void)
 {
 	TEST_ASSERT_EQUAL(-1, power_two(1000000));
 }
@@ -64,7 +61,7 @@ void test_power_two_overflow()
  * 2^8 = 256 overflows and wraps around to 0 (or negative in signed int).
  * On 16-bit / 32-bit (ARM Cortex-M0+ SAMD21), 256 and 1024 are fully valid.
  */
-void test_power()
+void test_power(void)
 {
 	TEST_ASSERT_EQUAL(8, power(2, 3));
 	TEST_ASSERT_EQUAL(27, power(3, 3));
@@ -81,7 +78,7 @@ void test_power()
  * - Negative numbers (inverts sign to positive magnitude)
  * - Large 16-bit signed negative number boundary (-32000)
  */
-void test_magnitude()
+void test_magnitude(void)
 {
 	TEST_ASSERT_EQUAL(15, magnitude(15));
 	TEST_ASSERT_EQUAL(0, magnitude(0));
@@ -89,25 +86,25 @@ void test_magnitude()
 	TEST_ASSERT_EQUAL(32000, magnitude(-32000));
 }
 
-void test_is_greater()
+void test_is_greater(void)
 {
 	TEST_ASSERT_TRUE(is_greater(20, 10));
 	TEST_ASSERT_FALSE(is_greater(10, 20));
 }
 
-void test_is_equal()
+void test_is_equal(void)
 {
 	TEST_ASSERT_TRUE(is_equal(10, 10));
 	TEST_ASSERT_FALSE(is_equal(10, 9));
 }
 
-void test_is_smaller()
+void test_is_smaller(void)
 {
 	TEST_ASSERT_TRUE(is_smaller(9, 10));
 	TEST_ASSERT_FALSE(is_smaller(10, 9));
 }
 
-void test_fill_single_digit_positive_number()
+void test_fill_single_digit_positive_number(void)
 {
 	int expected_arr[9] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 	size_t expected_size = sizeof(expected_arr) / sizeof(expected_arr[0]);
@@ -121,7 +118,7 @@ void test_fill_single_digit_positive_number()
 	TEST_ASSERT_EQUAL_MEMORY(expected_arr, arr, expected_size);
 }
 
-void test_true_as_string()
+void test_true_as_string(void)
 {
 	TEST_ASSERT_EQUAL_STRING("true", true_as_string());
 	TEST_ASSERT_EQUAL_STRING_LEN("truz", true_as_string(), 3);
@@ -129,7 +126,7 @@ void test_true_as_string()
 	TEST_ASSERT_EQUAL_MEMORY("true", true_as_string(), 4);
 }
 
-void test_false_as_string()
+void test_false_as_string(void)
 {
 	TEST_ASSERT_EQUAL_STRING_MESSAGE("false", false_as_string(),
 					 "The output should be 'false'");
@@ -137,16 +134,19 @@ void test_false_as_string()
 					     "First three characters should be 'tru'");
 }
 
-void setUp()
+void setUp(void)
 {
 }
 
-void tearDown()
+void tearDown(void)
 {
 }
 
-int main(void)
+void setup(void)
 {
+	// Wait 2 seconds for MKR Zero USB CDC to initialize
+	delay(2000);
+
 	UNITY_BEGIN();
 
 	RUN_TEST(test_add);
@@ -168,7 +168,8 @@ int main(void)
 	RUN_TEST(test_false_as_string);
 
 	UNITY_END();
-
-	return 0;
 }
-#endif
+
+void loop(void)
+{
+}
