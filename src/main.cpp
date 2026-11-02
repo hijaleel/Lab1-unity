@@ -3,7 +3,8 @@
  * Course: ECNG3006 - Microprocessor Systems
  * Lab 1: Question 5 - Demonstration Cyclic Executive Code
  * 
- * Student Name: Jaleel
+ * Student Name: Jaleel Gregory
+ * ID NO : 816039976
  * Platform:     Arduino MKR Zero (Microchip ATSAMD21G18A ARM Cortex-M0+)
  * Compiler:     arm-none-eabi-gcc (GNU ARM Embedded Toolchain)
  * ============================================================================
