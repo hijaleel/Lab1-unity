@@ -29,15 +29,15 @@ typedef struct {
 
 static HardwareTime_t g_time = {0, 0};
 
-/* Hardware SysTick ISR: fires every 1 ms */
-void SysTick_Handler(void) {
+/* Hardware Timer Tick callback: called by 1 ms periodic timer */
+void Timer_Tick_ISR(void) {
     g_time.millis++;
     if ((g_time.millis % 1000) == 0) {
         g_time.seconds++;
     }
 }
 
-/* Time function */
+/* Time function based on hardware timer ISR */
 uint32_t time_ms(void) {
     return g_time.millis;
 }
