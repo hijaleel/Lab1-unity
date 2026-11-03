@@ -1,0 +1,86 @@
+--- Terminal on COM9 | 115200 8-N-1
+--- Available filters and text transformations: debug, default, direct, hexlify, log2file, nocontrol, printable, send_on_enter, time
+--- More details at https://bit.ly/pio-monitor-filters
+--- Quit: Ctrl+C | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H
+burn time = 2000 ms
+
+>>> Starting Slot 1 <<<
+[388049 ms] task 1 running
+[389050 ms] task 3 running
+burn time = 999 ms
+
+>>> Starting Slot 2 <<<
+[393049 ms] task 1 running
+[394050 ms] task 4 running
+burn time = 0 ms
+
+>>> Starting Slot 3 <<<
+burn time = 4999 ms
+
+>>> Starting Slot 0 <<<
+[403051 ms] task 1 running
+[404052 ms] task 2 running
+burn time = 1998 ms
+
+>>> Starting Slot 1 <<<
+[408050 ms] task 1 running
+[409051 ms] task 3 running
+burn time = 999 ms
+
+>>> Starting Slot 2 <<<
+[413051 ms] task 1 running
+[414051 ms] task 4 running
+burn time = 0 ms
+
+>>> Starting Slot 3 <<<
+burn time = 4999 ms
+
+>>> Starting Slot 0 <<<
+[423051 ms] task 1 running
+[424052 ms] task 2 running
+burn time = 1999 ms
+
+>>> Starting Slot 1 <<<
+[428051 ms] task 1 running
+[429052 ms] task 3 running
+burn time = 999 ms
+
+>>> Starting Slot 2 <<<
+[433052 ms] task 1 running
+[434053 ms] task 4 running
+burn time = 0 ms
+
+>>> Starting Slot 3 <<<
+burn time = 4999 ms
+
+>>> Starting Slot 0 <<<
+[443053 ms] task 1 running
+[444054 ms] task 2 running
+burn time = 1999 ms
+
+>>> Starting Slot 1 <<<
+[448053 ms] task 1 running
+[449053 ms] task 3 running
+burn time = 1000 ms
+
+>>> Starting Slot 2 <<<
+[453053 ms] task 1 running
+[454053 ms] task 4 running
+burn time = 0 ms
+
+>>> Starting Slot 3 <<<
+burn time = 5000 ms
+
+>>> Starting Slot 0 <<<
+[463053 ms] task 1 running
+[464054 ms] task 2 running
+burn time = 1999 ms
+
+>>> Starting Slot 1 <<<
+[468053 ms] task 1 running
+[469054 ms] task 3 running
+burn time = 999 ms
+
+>>> Starting Slot 2 <<<
+[473054 ms] task 1 running
+[474054 ms] task 4 running
