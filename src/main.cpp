@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * Course: ECNG3006 - Microprocessor Systems
- * Lab 1: Question 5 - Demonstration Cyclic Executive Code
+ * Lab 1: Question 5 & 6 - Demonstration Cyclic Executive Code
  * 
  * Student Name: Jaleel Gregory
  * ID NO : 816039976
@@ -83,27 +83,37 @@ static uint32_t then = 0;
 /* --- Task Definitions (from Williams Section 4.7) --- */
 
 void one(void) {
-    Serial.println("task 1 running");
+    char buf[64];
+    snprintf(buf, sizeof(buf), "[%lu ms] task 1 running", (unsigned long)get_system_time_ms());
+    Serial.println(buf);
     custom_sleep(1);
 }
 
 void two(void) {
-    Serial.println("task 2 running");
+    char buf[64];
+    snprintf(buf, sizeof(buf), "[%lu ms] task 2 running", (unsigned long)get_system_time_ms());
+    Serial.println(buf);
     custom_sleep(2);
 }
 
 void three(void) {
-    Serial.println("task 3 running");
+    char buf[64];
+    snprintf(buf, sizeof(buf), "[%lu ms] task 3 running", (unsigned long)get_system_time_ms());
+    Serial.println(buf);
     custom_sleep(3);
 }
 
 void four(void) {
-    Serial.println("task 4 running");
+    char buf[64];
+    snprintf(buf, sizeof(buf), "[%lu ms] task 4 running", (unsigned long)get_system_time_ms());
+    Serial.println(buf);
     custom_sleep(4);
 }
 
 void five(void) {
-    Serial.println("task 5 running");
+    char buf[64];
+    snprintf(buf, sizeof(buf), "[%lu ms] task 5 running", (unsigned long)get_system_time_ms());
+    Serial.println(buf);
     custom_sleep(5);
 }
 
