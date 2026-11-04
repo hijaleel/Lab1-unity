@@ -130,3 +130,4 @@
   <text x="60" y="625" font-size="13" fill="#00ffcc">&#8226; Hexadecimal: 0x55 | Decimal: 85 | ASCII Character Observed: 'U'</text>
   <text x="60" y="650" font-size="13" fill="#a0b0cf">&#8226; Trigger: Falling edge triggered at 1.60V; inter-character transmission repeat period is 100 ms.</text>
 </svg>
+
