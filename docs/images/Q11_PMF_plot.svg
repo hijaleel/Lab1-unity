@@ -55,3 +55,4 @@
   <rect x="120" y="135" width="16" height="16" fill="#e74c3c" opacity="0.8"/>
   <text x="145" y="148" font-size="12">HW Averaging (Window = 16): SNR=113, ENOB=6</text>
 </svg>
+
