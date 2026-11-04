@@ -1,0 +1,61 @@
+--- Terminal on COM9 | 115200 8-N-1
+--- Available filters and text transformations: debug, default, direct, hexlify, log2file, nocontrol, printable, send_on_enter, time
+--- More details at https://bit.ly/pio-monitor-filters
+--- Quit: Ctrl+C | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H
+
+=========================================================
+ ECNG3006 Lab 1: Data Acquisition System & Jitter/Noise
+ Student: Jaleel Gregory | ID: 816039976
+ Hardware: Microchip ATSAMD21G18A (sam.h bare-metal ADC)
+ Sampling Rate: 1000 Hz | Busy-Wait Synchronized
+=========================================================
+
+======================================================
+ Starting DAQ Acquisition (Hardware Averaging = 1)
+======================================================
+----- TIMING & JITTER RESULTS (Question 10) -----
+Samples Recorded: 1000
+Target Interval : 1000 us (1000 Hz)
+maxT: 1002 us
+minT: 998 us
+Sampling Jitter (maxT - minT): 4 us
+
+----- SIGNAL & NOISE RESULTS (Questions 9 & 11) -----
+Hardware Averaging: 1 sample(s)
+Signal (Mean ADC code): 1023 (out of 1023)
+Noise (Std Dev)       : 1
+SNR (Signal / Noise)  : 1023
+ENOB = log2(SNR)      : 9 bits
+
+----- PROBABILITY MASS FUNCTION (PMF) TABLE -----
+ADC_Code,Frequency,Probability_x1000
+1023,1000,1000
+----- END OF ACQUISITION -----
+
+
+======================================================
+ Starting DAQ Acquisition (Hardware Averaging = 16)
+======================================================
+----- TIMING & JITTER RESULTS (Question 10) -----
+Samples Recorded: 1000
+Target Interval : 1000 us (1000 Hz)
+maxT: 1002 us
+minT: 998 us
+Sampling Jitter (maxT - minT): 4 us
+
+----- SIGNAL & NOISE RESULTS (Questions 9 & 11) -----
+Hardware Averaging: 16 sample(s)
+Signal (Mean ADC code): 1022 (out of 1023)
+Noise (Std Dev)       : 9
+SNR (Signal / Noise)  : 113
+ENOB = log2(SNR)      : 6 bits
+
+----- PROBABILITY MASS FUNCTION (PMF) TABLE -----
+ADC_Code,Frequency,Probability_x1000
+839,1,1
+869,1,1
+894,1,1
+914,1,1
+1022,1,1
+1023,995,995
+----- END OF ACQUISITION -----
