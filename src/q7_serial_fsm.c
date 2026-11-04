@@ -77,3 +77,4 @@ uint8_t fsm_step(bool has_new_char, char rx_char) {
 
     return (current_state == STATE_ON) ? 1 : 0;
 }
+

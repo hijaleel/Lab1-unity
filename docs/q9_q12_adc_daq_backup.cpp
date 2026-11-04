@@ -63,3 +63,4 @@ uint16_t samd21_adc_read_baremetal(void) {
     while (!(ADC->INTFLAG.bit.RESRDY));
     return (uint16_t)ADC->RESULT.reg;
 }
+
