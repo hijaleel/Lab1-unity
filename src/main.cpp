@@ -4,12 +4,12 @@
  * Lab 1: Data Acquisition System, Noise & Jitter Analysis (Questions 9 - 12)
  * 
  * Student Name: Jaleel Gregory
- * ID NO:        816039976
+ * ID :        816039976
  * Platform:     Arduino MKR Zero (Microchip ATSAMD21G18A ARM Cortex-M0+)
  * Compiler:     arm-none-eabi-gcc (GNU ARM Embedded Toolchain)
  * ============================================================================
  * Description:
- * Bare-metal SAMD21 (sam.h / CMSIS) implementation of 1000 Hz ADC DAQ:
+ * Bare-metal SAMD21 (sam.h / CMSIS) implementation of 1000 Hz ADC DAQ :
  * 1. Configures ADC via sam.h registers (GCLK, PM, ADC->CTRLA, ADC->AVGCTRL).
  * 2. Samples AIN[10] / A1 (PB02) at 1000 Hz using busy-wait synchronization.
  * 3. Collects 1000 samples into DataBuf[1000] and timestamps into TimeBuf[1000].

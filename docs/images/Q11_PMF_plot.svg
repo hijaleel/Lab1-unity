@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" style="background:#ffffff; font-family:sans-serif;">
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="bold">Probability Mass Function (PMF) - ATSAMD21 ADC</text>
+  <text x="400" y="55" text-anchor="middle" font-size="13" fill="#555">ECNG3006 Lab 1 | Jaleel Gregory (816039976)</text>
+  
+  <!-- Axes -->
+  <line x1="80" y1="420" x2="750" y2="420" stroke="#333" stroke-width="2"/>
+  <line x1="80" y1="420" x2="80" y2="80" stroke="#333" stroke-width="2"/>
+  
+  <text x="415" y="465" text-anchor="middle" font-size="14" font-weight="bold">ADC Output Code</text>
+  <text x="25" y="250" text-anchor="middle" font-size="14" font-weight="bold" transform="rotate(-90 25 250)">Relative Probability</text>
+  
+  <!-- Y-axis ticks -->
+  <text x="70" y="425" text-anchor="end" font-size="11">0.0</text>
+  <line x1="75" y1="420" x2="80" y2="420" stroke="#333"/>
+  
+  <text x="70" y="255" text-anchor="end" font-size="11">0.5</text>
+  <line x1="75" y1="250" x2="80" y2="250" stroke="#333"/>
+  <line x1="80" y1="250" x2="750" y2="250" stroke="#eee" stroke-dasharray="4"/>
+  
+  <text x="70" y="95" text-anchor="end" font-size="11">1.0</text>
+  <line x1="75" y1="90" x2="80" y2="90" stroke="#333"/>
+  <line x1="80" y1="90" x2="750" y2="90" stroke="#eee" stroke-dasharray="4"/>
+  
+  <!-- Labels and Bars for Hardware Averaging = 16 -->
+  <!-- 839: 1/1000 -->
+  <rect x="130" y="416" width="12" height="4" fill="#e74c3c"/>
+  <text x="136" y="440" text-anchor="middle" font-size="10">839</text>
+  
+  <!-- 869: 1/1000 -->
+  <rect x="220" y="416" width="12" height="4" fill="#e74c3c"/>
+  <text x="226" y="440" text-anchor="middle" font-size="10">869</text>
+  
+  <!-- 894: 1/1000 -->
+  <rect x="310" y="416" width="12" height="4" fill="#e74c3c"/>
+  <text x="316" y="440" text-anchor="middle" font-size="10">894</text>
+  
+  <!-- 914: 1/1000 -->
+  <rect x="400" y="416" width="12" height="4" fill="#e74c3c"/>
+  <text x="406" y="440" text-anchor="middle" font-size="10">914</text>
+  
+  <!-- 1022: 1/1000 -->
+  <rect x="620" y="416" width="12" height="4" fill="#e74c3c"/>
+  <text x="626" y="440" text-anchor="middle" font-size="10">1022</text>
+  
+  <!-- 1023: 995/1000 (avg 16) and 1000/1000 (no avg) -->
+  <rect x="670" y="90" width="18" height="330" fill="#3498db" opacity="0.7"/>
+  <rect x="692" y="92" width="18" height="328" fill="#e74c3c" opacity="0.8"/>
+  <text x="690" y="440" text-anchor="middle" font-size="10">1023</text>
+  <text x="690" y="80" text-anchor="middle" font-size="11" font-weight="bold">p ~ 1.0</text>
+  
+  <!-- Legend -->
+  <rect x="120" y="110" width="16" height="16" fill="#3498db" opacity="0.7"/>
+  <text x="145" y="123" font-size="12">No Averaging (Window = 1): SNR=1023, ENOB=9</text>
+  
+  <rect x="120" y="135" width="16" height="16" fill="#e74c3c" opacity="0.8"/>
+  <text x="145" y="148" font-size="12">HW Averaging (Window = 16): SNR=113, ENOB=6</text>
+</svg>

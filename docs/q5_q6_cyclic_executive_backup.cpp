@@ -106,3 +106,4 @@ static TaskFunction_t ttable[SLOTX][CYCLEX] = {
     { one,  four,  burn, burn, burn },
     { burn, burn,  burn, burn, burn }
 };
+
