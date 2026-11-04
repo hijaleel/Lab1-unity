@@ -9,25 +9,26 @@
  * Compiler:     arm-none-eabi-gcc (GNU ARM Embedded Toolchain)
  * ============================================================================
  * Description:
- * 1. 1000 Hz ADC Sampling with busy-wait synchronization.
- * 2. Collects 1000 samples into DataBuf[1000] and timestamps into TimeBuf[1000].
- * 3. Calculates Sampling Jitter: maxT, minT, Jitter = maxT - minT (in microseconds).
- * 4. Pure integer statistics (no floating point):
+ * Bare-metal SAMD21 (sam.h / CMSIS) implementation of 1000 Hz ADC DAQ:
+ * 1. Configures ADC via sam.h registers (GCLK, PM, ADC->CTRLA, ADC->AVGCTRL).
+ * 2. Samples AIN[10] / A1 (PB02) at 1000 Hz using busy-wait synchronization.
+ * 3. Collects 1000 samples into DataBuf[1000] and timestamps into TimeBuf[1000].
+ * 4. Calculates Sampling Jitter: maxT, minT, Jitter = maxT - minT (in microseconds).
+ * 5. Pure integer statistics (no floating point):
  *    - Signal = Mean (integer division)
  *    - Noise  = Standard Deviation (integer square root)
  *    - SNR    = Signal / Noise
  *    - ENOB   = log2(SNR)
- * 5. Probability Mass Function (PMF) histogram generation.
- * 6. Configures SAMD21 ADC Hardware Averaging via ADC->AVGCTRL.
+ * 6. Probability Mass Function (PMF) histogram generation.
  * ============================================================================
  */
 
-#include <Arduino.h>
+#include <Arduino.h> // Provides standard board init & USB CDC Serial interface
+#include <sam.h>     // Bare-metal SAMD21 direct register definitions
 #include <stdint.h>
 #include <stdio.h>
 
 #define NUM_SAMPLES 1000
-#define ADC_PIN     A1 // MKR Zero ADC input pin (PB02 / A1)
 
 /* Buffers required by specification */
 static uint16_t DataBuf[NUM_SAMPLES];
@@ -37,8 +38,81 @@ static uint32_t TimeBuf[NUM_SAMPLES];
 static uint16_t PMF[1024];
 
 /**
- * Fast integer square root algorithm (Newton-Raphson / bitwise)
- * Avoids any floating point unit usage as mandated.
+ * Configure ADC directly via bare-metal sam.h registers
+ * Channel: AIN[10] on PB02 (which maps to pin A1 on MKR Zero)
+ */
+void samd21_adc_init_baremetal(void) {
+    // 1. Enable peripheral clock for ADC in Power Manager (PM)
+    PM->APBCMASK.reg |= PM_APBCMASK_ADC;
+
+    // 2. Route Generic Clock Generator 0 (48 MHz) to GCLK_ADC
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID(GCLK_CLKCTRL_ID_ADC_Val) |
+                        GCLK_CLKCTRL_GEN(GCLK_CLKCTRL_GEN_GCLK0_Val) |
+                        GCLK_CLKCTRL_CLKEN;
+    while (GCLK->STATUS.bit.SYNCBUSY);
+
+    // 3. Configure Pin PB02 (AIN[10]) for peripheral function B (Analog Input)
+    PORT->Group[1].PINCFG[2].bit.PMUXEN = 1;
+    PORT->Group[1].PMUX[1].bit.PMUXE = PORT_PMUX_PMUXE_B_Val; // Even pin PB02 = B (ADC AIN10)
+
+    // 4. Reset ADC
+    ADC->CTRLA.bit.SWRST = 1;
+    while (ADC->STATUS.bit.SYNCBUSY || ADC->CTRLA.bit.SWRST);
+
+    // 5. Configure ADC Reference (Internal VDDANA / 1.65V or 1/2 VDDANA)
+    // Use VDDANA (3.3V) as standard reference: REFSEL = 1/2 VDDANA or INTREF
+    ADC->REFCTRL.reg = ADC_REFCTRL_REFSEL_INTVCC1; // 1/2 VDDANA (equivalent to 1.65V) or 3.3V
+    
+    // 6. Set prescaler to DIV128 (48 MHz / 128 = 375 kHz ADC clock, well within 30-2100 kHz spec)
+    ADC->CTRLB.reg = ADC_CTRLB_PRESCALER_DIV128 | ADC_CTRLB_RESSEL_10BIT;
+
+    // 7. Select input: AIN[10] (PB02) on Positive MUX, GND on Negative MUX
+    ADC->INPUTCTRL.reg = ADC_INPUTCTRL_MUXPOS_PIN10 | ADC_INPUTCTRL_MUXNEG_GND;
+
+    // 8. Enable ADC
+    ADC->CTRLA.bit.ENABLE = 1;
+    while (ADC->STATUS.bit.SYNCBUSY);
+}
+
+/**
+ * Set SAMD21 ADC Hardware Averaging directly via sam.h register AVGCTRL
+ */
+void samd21_adc_set_hardware_averaging_baremetal(uint16_t avg_samples) {
+    uint8_t samplenum = 0;
+    uint8_t adjust = 0;
+
+    switch (avg_samples) {
+        case 1:    samplenum = ADC_AVGCTRL_SAMPLENUM_1_Val;    adjust = 0; break;
+        case 2:    samplenum = ADC_AVGCTRL_SAMPLENUM_2_Val;    adjust = 1; break;
+        case 4:    samplenum = ADC_AVGCTRL_SAMPLENUM_4_Val;    adjust = 2; break;
+        case 8:    samplenum = ADC_AVGCTRL_SAMPLENUM_8_Val;    adjust = 3; break;
+        case 16:   samplenum = ADC_AVGCTRL_SAMPLENUM_16_Val;   adjust = 4; break;
+        default:   samplenum = ADC_AVGCTRL_SAMPLENUM_1_Val;    adjust = 0; break;
+    }
+
+    // Wait for synchronization before updating register
+    while (ADC->STATUS.bit.SYNCBUSY);
+    ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM(samplenum) | ADC_AVGCTRL_ADJRES(adjust);
+    while (ADC->STATUS.bit.SYNCBUSY);
+}
+
+/**
+ * Bare-metal ADC conversion with busy-wait synchronization
+ */
+uint16_t samd21_adc_read_baremetal(void) {
+    // Start conversion
+    while (ADC->STATUS.bit.SYNCBUSY);
+    ADC->SWTRIG.bit.START = 1;
+
+    // Busy-wait synchronization until conversion is complete (RESRDY flag)
+    while (!(ADC->INTFLAG.bit.RESRDY));
+
+    // Clear flag and return 10-bit result
+    return (uint16_t)ADC->RESULT.reg;
+}
+
+/**
+ * Integer square root algorithm (no floating point)
  */
 uint32_t isqrt(uint64_t n) {
     if (n == 0) return 0;
@@ -53,7 +127,7 @@ uint32_t isqrt(uint64_t n) {
 }
 
 /**
- * Integer base-2 logarithm (floor of log2)
+ * Integer log2 (floor of log2)
  */
 uint32_t ilog2(uint32_t val) {
     if (val == 0) return 0;
@@ -62,42 +136,6 @@ uint32_t ilog2(uint32_t val) {
         log++;
     }
     return log;
-}
-
-/**
- * Configure ATSAMD21 ADC Hardware Averaging
- * avg_samples: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024
- */
-void set_samd21_hardware_averaging(uint16_t avg_samples) {
-    uint8_t samplenum = 0;
-    uint8_t adjust = 0;
-
-    switch (avg_samples) {
-        case 1:    samplenum = ADC_AVGCTRL_SAMPLENUM_1_Val;    adjust = 0; break;
-        case 2:    samplenum = ADC_AVGCTRL_SAMPLENUM_2_Val;    adjust = 1; break;
-        case 4:    samplenum = ADC_AVGCTRL_SAMPLENUM_4_Val;    adjust = 2; break;
-        case 8:    samplenum = ADC_AVGCTRL_SAMPLENUM_8_Val;    adjust = 3; break;
-        case 16:   samplenum = ADC_AVGCTRL_SAMPLENUM_16_Val;   adjust = 4; break;
-        case 32:   samplenum = ADC_AVGCTRL_SAMPLENUM_32_Val;   adjust = 4; break;
-        case 64:   samplenum = ADC_AVGCTRL_SAMPLENUM_64_Val;   adjust = 4; break;
-        case 128:  samplenum = ADC_AVGCTRL_SAMPLENUM_128_Val;  adjust = 4; break;
-        case 256:  samplenum = ADC_AVGCTRL_SAMPLENUM_256_Val;  adjust = 4; break;
-        case 512:  samplenum = ADC_AVGCTRL_SAMPLENUM_512_Val;  adjust = 4; break;
-        case 1024: samplenum = ADC_AVGCTRL_SAMPLENUM_1024_Val; adjust = 4; break;
-        default:   samplenum = ADC_AVGCTRL_SAMPLENUM_1_Val;    adjust = 0; break;
-    }
-
-    // Wait for synchronization before writing
-    while (ADC->STATUS.bit.SYNCBUSY);
-    ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM(samplenum) | ADC_AVGCTRL_ADJRES(adjust);
-    while (ADC->STATUS.bit.SYNCBUSY);
-}
-
-/**
- * Perform single ADC acquisition with busy-wait synchronization
- */
-uint16_t adc_read_busy_wait(void) {
-    return (uint16_t)analogRead(ADC_PIN);
 }
 
 /**
@@ -110,25 +148,25 @@ void run_data_acquisition(uint16_t hw_avg) {
                                "======================================================\r\n", hw_avg);
     Serial.print(str);
 
-    set_samd21_hardware_averaging(hw_avg);
+    samd21_adc_set_hardware_averaging_baremetal(hw_avg);
 
-    // Warm-up reading
-    analogRead(ADC_PIN);
+    // Warm-up conversion
+    samd21_adc_read_baremetal();
     delay(10);
 
     /* --- 1. 1000 Hz Sampling Loop with Busy-Wait Synchronization --- */
     uint32_t next_sample_time = micros();
     for (int i = 0; i < NUM_SAMPLES; i++) {
-        // Busy wait until periodic 1000 Hz (1000 microseconds) boundary arrives
+        // Busy wait until periodic 1000 Hz (1000 us) boundary arrives
         while ((int32_t)(micros() - next_sample_time) < 0) {
             __NOP();
         }
         TimeBuf[i] = micros();
-        DataBuf[i] = adc_read_busy_wait();
-        next_sample_time += 1000; // Target 1000 us = 1 ms interval
+        DataBuf[i] = samd21_adc_read_baremetal(); // Read ADC via sam.h registers
+        next_sample_time += 1000;                 // Target 1000 us = 1 ms interval
     }
 
-    /* --- 2. Calculate Sampling Jitter --- */
+    /* --- 2. Calculate Sampling Jitter (Question 10) --- */
     uint32_t maxT = 0;
     uint32_t minT = 0xFFFFFFFF;
 
@@ -139,7 +177,7 @@ void run_data_acquisition(uint16_t hw_avg) {
     }
     uint32_t jitter = maxT - minT;
 
-    /* --- 3. Calculate Signal (Mean) and Noise (Std Dev) (Integer Only) --- */
+    /* --- 3. Calculate Signal (Mean) and Noise (Std Dev) (Pure Integer) --- */
     uint64_t sum = 0;
     for (int i = 0; i < NUM_SAMPLES; i++) {
         sum += DataBuf[i];
@@ -152,9 +190,7 @@ void run_data_acquisition(uint16_t hw_avg) {
         variance_sum += (uint64_t)(diff * diff);
     }
     uint32_t noise_stddev = isqrt(variance_sum / NUM_SAMPLES);
-
-    // To prevent division by zero in perfectly noiseless ideal simulations
-    if (noise_stddev == 0) noise_stddev = 1;
+    if (noise_stddev == 0) noise_stddev = 1; // Prevent div by zero
 
     uint32_t snr = mean_signal / noise_stddev;
     uint32_t enob = ilog2(snr);
@@ -205,24 +241,23 @@ void setup(void) {
         ; // Wait up to 3s for Serial Monitor
     }
 
-    analogReadResolution(10); // Standard 10-bit resolution
+    // Initialize ADC directly using bare-metal sam.h registers
+    samd21_adc_init_baremetal();
 
     Serial.println("\r\n=========================================================");
     Serial.println(" ECNG3006 Lab 1: Data Acquisition System & Jitter/Noise");
     Serial.println(" Student: Jaleel Gregory | ID: 816039976");
+    Serial.println(" Hardware: Microchip ATSAMD21G18A (sam.h bare-metal ADC)");
     Serial.println(" Sampling Rate: 1000 Hz | Busy-Wait Synchronized");
     Serial.println("=========================================================");
 
-    // Perform an initial scan across two hardware averaging configurations:
-    // 1. No hardware averaging (1 sample)
-    // 2. Hardware averaging (16 samples)
+    // Run scans for No Averaging (1) and Hardware Averaging (16)
     run_data_acquisition(1);
     delay(2000);
     run_data_acquisition(16);
 }
 
 void loop(void) {
-    // Keep board alive; user can trigger another capture by typing 'r' or entering text
     if (Serial.available()) {
         char ch = Serial.read();
         if (ch == 'r' || ch == 'R') {
