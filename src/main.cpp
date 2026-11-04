@@ -1,180 +1,234 @@
 /**
  * ============================================================================
  * Course: ECNG3006 - Microprocessor Systems
- * Lab 1: Question 5 & 6 - Demonstration Cyclic Executive Code
+ * Lab 1: Data Acquisition System, Noise & Jitter Analysis (Questions 9 - 12)
  * 
  * Student Name: Jaleel Gregory
- * ID NO : 816039976
+ * ID NO:        816039976
  * Platform:     Arduino MKR Zero (Microchip ATSAMD21G18A ARM Cortex-M0+)
  * Compiler:     arm-none-eabi-gcc (GNU ARM Embedded Toolchain)
  * ============================================================================
  * Description:
- * Adapted from Rob Williams, "Real-Time Systems Development", Section 4.7
- * ("Demonstration Cyclic Executive Code").
- * 
- * Key Platform Adaptations:
- * 1. Serial Print: Implemented using USB-CDC Serial communication at 115200 baud.
- * 2. Hardware Timer & ISR: Configured SysTick / 1 ms periodic interrupt that 
- *    services and increments a custom hardware time structure.
- * 3. Sleep & Time: Written from scratch using the hardware timer ISR.
+ * 1. 1000 Hz ADC Sampling with busy-wait synchronization.
+ * 2. Collects 1000 samples into DataBuf[1000] and timestamps into TimeBuf[1000].
+ * 3. Calculates Sampling Jitter: maxT, minT, Jitter = maxT - minT (in microseconds).
+ * 4. Pure integer statistics (no floating point):
+ *    - Signal = Mean (integer division)
+ *    - Noise  = Standard Deviation (integer square root)
+ *    - SNR    = Signal / Noise
+ *    - ENOB   = log2(SNR)
+ * 5. Probability Mass Function (PMF) histogram generation.
+ * 6. Configures SAMD21 ADC Hardware Averaging via ADC->AVGCTRL.
  * ============================================================================
  */
 
 #include <Arduino.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
-/* Number of task slots in the scheduling frame */
-#define SLOTX   4
-/* Maximum number of sub-cycles/tasks within a single slot */
-#define CYCLEX  5
-/* Slot duration in milliseconds (Williams uses 5000 ms = 5 s) */
-#define SLOT_T  5000 
+#define NUM_SAMPLES 1000
+#define ADC_PIN     A1 // MKR Zero ADC input pin (PB02 / A1)
 
-/**
- * Hardware Time Structure
- * Incremented by the hardware timer ISR
- */
-typedef struct {
-    volatile uint32_t millis;
-    volatile uint32_t seconds;
-} HardwareTime_t;
+/* Buffers required by specification */
+static uint16_t DataBuf[NUM_SAMPLES];
+static uint32_t TimeBuf[NUM_SAMPLES];
 
-static HardwareTime_t g_system_time = {0, 0};
+/* Probability Mass Function (PMF) frequency bins: 10-bit ADC has 1024 codes */
+static uint16_t PMF[1024];
 
 /**
- * Hardware Timer Hook / ISR Callback
- * In the SAMD21 Arduino core, SysTick triggers at 1 kHz (1 ms period).
- * We maintain our custom hardware time structure here.
+ * Fast integer square root algorithm (Newton-Raphson / bitwise)
+ * Avoids any floating point unit usage as mandated.
  */
-extern "C" void osSystickHandler(void) {
-    g_system_time.millis++;
-    if ((g_system_time.millis % 1000) == 0) {
-        g_system_time.seconds++;
+uint32_t isqrt(uint64_t n) {
+    if (n == 0) return 0;
+    uint64_t x0 = n / 2;
+    if (x0 == 0) return 1;
+    uint64_t x1 = (x0 + n / x0) / 2;
+    while (x1 < x0) {
+        x0 = x1;
+        x1 = (x0 + n / x0) / 2;
     }
+    return (uint32_t)x0;
 }
 
 /**
- * Returns current timestamp in milliseconds from the ISR time structure
+ * Integer base-2 logarithm (floor of log2)
  */
-uint32_t get_system_time_ms(void) {
-    // Fallback to millis() if osSystickHandler hook is overridden by RTOS
-    return (g_system_time.millis > 0) ? g_system_time.millis : millis();
-}
-
-/**
- * Custom sleep function: replaces POSIX sleep(seconds)
- * Pauses execution for the requested duration in seconds using the timer ISR.
- */
-void custom_sleep(uint32_t seconds) {
-    uint32_t target_ms = get_system_time_ms() + (seconds * 1000);
-    while (get_system_time_ms() < target_ms) {
-        // Yield/wait for the hardware timer ISR to increment the time structure
-        yield();
+uint32_t ilog2(uint32_t val) {
+    if (val == 0) return 0;
+    uint32_t log = 0;
+    while (val >>= 1) {
+        log++;
     }
-}
-
-/* Cyclic Executive Execution State */
-static int cycle = 0;
-static int slot  = 0;
-static uint32_t now  = 0;
-static uint32_t then = 0;
-
-/* --- Task Definitions (from Williams Section 4.7) --- */
-
-void one(void) {
-    char buf[64];
-    snprintf(buf, sizeof(buf), "[%lu ms] task 1 running", (unsigned long)get_system_time_ms());
-    Serial.println(buf);
-    custom_sleep(1);
-}
-
-void two(void) {
-    char buf[64];
-    snprintf(buf, sizeof(buf), "[%lu ms] task 2 running", (unsigned long)get_system_time_ms());
-    Serial.println(buf);
-    custom_sleep(2);
-}
-
-void three(void) {
-    char buf[64];
-    snprintf(buf, sizeof(buf), "[%lu ms] task 3 running", (unsigned long)get_system_time_ms());
-    Serial.println(buf);
-    custom_sleep(3);
-}
-
-void four(void) {
-    char buf[64];
-    snprintf(buf, sizeof(buf), "[%lu ms] task 4 running", (unsigned long)get_system_time_ms());
-    Serial.println(buf);
-    custom_sleep(4);
-}
-
-void five(void) {
-    char buf[64];
-    snprintf(buf, sizeof(buf), "[%lu ms] task 5 running", (unsigned long)get_system_time_ms());
-    Serial.println(buf);
-    custom_sleep(5);
+    return log;
 }
 
 /**
- * Burn Task: Fills remaining slot time until next slot tick
+ * Configure ATSAMD21 ADC Hardware Averaging
+ * avg_samples: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024
  */
-void burn(void) {
-    uint32_t bstart = get_system_time_ms();
-    
-    // Busy-wait burn until the 5000 ms slot boundary is reached
-    while ((now = get_system_time_ms()) - then < SLOT_T) {
-        /* Burn CPU time here until slot period completes */
-        yield();
+void set_samd21_hardware_averaging(uint16_t avg_samples) {
+    uint8_t samplenum = 0;
+    uint8_t adjust = 0;
+
+    switch (avg_samples) {
+        case 1:    samplenum = ADC_AVGCTRL_SAMPLENUM_1_Val;    adjust = 0; break;
+        case 2:    samplenum = ADC_AVGCTRL_SAMPLENUM_2_Val;    adjust = 1; break;
+        case 4:    samplenum = ADC_AVGCTRL_SAMPLENUM_4_Val;    adjust = 2; break;
+        case 8:    samplenum = ADC_AVGCTRL_SAMPLENUM_8_Val;    adjust = 3; break;
+        case 16:   samplenum = ADC_AVGCTRL_SAMPLENUM_16_Val;   adjust = 4; break;
+        case 32:   samplenum = ADC_AVGCTRL_SAMPLENUM_32_Val;   adjust = 4; break;
+        case 64:   samplenum = ADC_AVGCTRL_SAMPLENUM_64_Val;   adjust = 4; break;
+        case 128:  samplenum = ADC_AVGCTRL_SAMPLENUM_128_Val;  adjust = 4; break;
+        case 256:  samplenum = ADC_AVGCTRL_SAMPLENUM_256_Val;  adjust = 4; break;
+        case 512:  samplenum = ADC_AVGCTRL_SAMPLENUM_512_Val;  adjust = 4; break;
+        case 1024: samplenum = ADC_AVGCTRL_SAMPLENUM_1024_Val; adjust = 4; break;
+        default:   samplenum = ADC_AVGCTRL_SAMPLENUM_1_Val;    adjust = 0; break;
     }
-    
-    uint32_t elapsed_burn = get_system_time_ms() - bstart;
-    char buffer[64];
-    snprintf(buffer, sizeof(buffer), "burn time = %lu ms\r\n", (unsigned long)elapsed_burn);
-    Serial.println(buffer);
-    
-    then = now;
-    cycle = CYCLEX; // Force move to next slot in dispatcher
+
+    // Wait for synchronization before writing
+    while (ADC->STATUS.bit.SYNCBUSY);
+    ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM(samplenum) | ADC_AVGCTRL_ADJRES(adjust);
+    while (ADC->STATUS.bit.SYNCBUSY);
 }
 
-/* Task Table: Function pointers arranged in 4 slots with 5 entries each */
-typedef void (*TaskFunction_t)(void);
+/**
+ * Perform single ADC acquisition with busy-wait synchronization
+ */
+uint16_t adc_read_busy_wait(void) {
+    return (uint16_t)analogRead(ADC_PIN);
+}
 
-static TaskFunction_t ttable[SLOTX][CYCLEX] = {
-    { one,  two,   burn, burn, burn },
-    { one,  three, burn, burn, burn },
-    { one,  four,  burn, burn, burn },
-    { burn, burn,  burn, burn, burn }
-};
+/**
+ * Run Data Acquisition at 1000 Hz, calculate Jitter, SNR, ENOB, and output PMF
+ */
+void run_data_acquisition(uint16_t hw_avg) {
+    char str[128];
+    snprintf(str, sizeof(str), "\r\n======================================================\r\n"
+                               " Starting DAQ Acquisition (Hardware Averaging = %u)\r\n"
+                               "======================================================\r\n", hw_avg);
+    Serial.print(str);
+
+    set_samd21_hardware_averaging(hw_avg);
+
+    // Warm-up reading
+    analogRead(ADC_PIN);
+    delay(10);
+
+    /* --- 1. 1000 Hz Sampling Loop with Busy-Wait Synchronization --- */
+    uint32_t next_sample_time = micros();
+    for (int i = 0; i < NUM_SAMPLES; i++) {
+        // Busy wait until periodic 1000 Hz (1000 microseconds) boundary arrives
+        while ((int32_t)(micros() - next_sample_time) < 0) {
+            __NOP();
+        }
+        TimeBuf[i] = micros();
+        DataBuf[i] = adc_read_busy_wait();
+        next_sample_time += 1000; // Target 1000 us = 1 ms interval
+    }
+
+    /* --- 2. Calculate Sampling Jitter --- */
+    uint32_t maxT = 0;
+    uint32_t minT = 0xFFFFFFFF;
+
+    for (int i = 1; i < NUM_SAMPLES; i++) {
+        uint32_t dt = TimeBuf[i] - TimeBuf[i - 1];
+        if (dt > maxT) maxT = dt;
+        if (dt < minT) minT = dt;
+    }
+    uint32_t jitter = maxT - minT;
+
+    /* --- 3. Calculate Signal (Mean) and Noise (Std Dev) (Integer Only) --- */
+    uint64_t sum = 0;
+    for (int i = 0; i < NUM_SAMPLES; i++) {
+        sum += DataBuf[i];
+    }
+    uint32_t mean_signal = (uint32_t)(sum / NUM_SAMPLES);
+
+    uint64_t variance_sum = 0;
+    for (int i = 0; i < NUM_SAMPLES; i++) {
+        int32_t diff = (int32_t)DataBuf[i] - (int32_t)mean_signal;
+        variance_sum += (uint64_t)(diff * diff);
+    }
+    uint32_t noise_stddev = isqrt(variance_sum / NUM_SAMPLES);
+
+    // To prevent division by zero in perfectly noiseless ideal simulations
+    if (noise_stddev == 0) noise_stddev = 1;
+
+    uint32_t snr = mean_signal / noise_stddev;
+    uint32_t enob = ilog2(snr);
+
+    /* --- 4. Report Results --- */
+    Serial.println("----- TIMING & JITTER RESULTS (Question 10) -----");
+    snprintf(str, sizeof(str), "Samples Recorded: %d\r\n", NUM_SAMPLES); Serial.print(str);
+    snprintf(str, sizeof(str), "Target Interval : 1000 us (1000 Hz)\r\n"); Serial.print(str);
+    snprintf(str, sizeof(str), "maxT: %lu us\r\n", (unsigned long)maxT); Serial.print(str);
+    snprintf(str, sizeof(str), "minT: %lu us\r\n", (unsigned long)minT); Serial.print(str);
+    snprintf(str, sizeof(str), "Sampling Jitter (maxT - minT): %lu us\r\n", (unsigned long)jitter); Serial.print(str);
+
+    Serial.println("\r\n----- SIGNAL & NOISE RESULTS (Questions 9 & 11) -----");
+    snprintf(str, sizeof(str), "Hardware Averaging: %u sample(s)\r\n", hw_avg); Serial.print(str);
+    snprintf(str, sizeof(str), "Signal (Mean ADC code): %lu (out of 1023)\r\n", (unsigned long)mean_signal); Serial.print(str);
+    snprintf(str, sizeof(str), "Noise (Std Dev)       : %lu\r\n", (unsigned long)noise_stddev); Serial.print(str);
+    snprintf(str, sizeof(str), "SNR (Signal / Noise)  : %lu\r\n", (unsigned long)snr); Serial.print(str);
+    snprintf(str, sizeof(str), "ENOB = log2(SNR)      : %lu bits\r\n", (unsigned long)enob); Serial.print(str);
+
+    /* --- 5. Build and Output PMF Histogram (Question 11) --- */
+    memset(PMF, 0, sizeof(PMF));
+    uint16_t min_observed = 1023;
+    uint16_t max_observed = 0;
+    for (int i = 0; i < NUM_SAMPLES; i++) {
+        uint16_t code = DataBuf[i];
+        if (code < 1024) {
+            PMF[code]++;
+            if (code < min_observed) min_observed = code;
+            if (code > max_observed) max_observed = code;
+        }
+    }
+
+    Serial.println("\r\n----- PROBABILITY MASS FUNCTION (PMF) TABLE -----");
+    Serial.println("ADC_Code,Frequency,Probability_x1000");
+    for (uint16_t c = min_observed; c <= max_observed; c++) {
+        if (PMF[c] > 0) {
+            snprintf(str, sizeof(str), "%u,%u,%u\r\n", c, PMF[c], (PMF[c] * 1000) / NUM_SAMPLES);
+            Serial.print(str);
+        }
+    }
+    Serial.println("----- END OF ACQUISITION -----\r\n");
+}
 
 #ifndef UNIT_TEST
 void setup(void) {
-    // Initialize USB Serial for MKR Zero
     Serial.begin(115200);
     while (!Serial && millis() < 3000) {
-        ; // Wait up to 3 seconds for Serial Monitor to connect
+        ; // Wait up to 3s for Serial Monitor
     }
-    
-    Serial.println("==============================================");
-    Serial.println(" Williams Ch 4.7 Demonstration Cyclic Executive");
-    Serial.println(" Target: Arduino MKR Zero (ATSAMD21G18A)");
-    Serial.println(" Hardware Timer: 1000 Hz SysTick ISR");
-    Serial.println(" Slot Period: 5000 ms");
-    Serial.println("==============================================\r\n");
-    
-    then = get_system_time_ms();
+
+    analogReadResolution(10); // Standard 10-bit resolution
+
+    Serial.println("\r\n=========================================================");
+    Serial.println(" ECNG3006 Lab 1: Data Acquisition System & Jitter/Noise");
+    Serial.println(" Student: Jaleel Gregory | ID: 816039976");
+    Serial.println(" Sampling Rate: 1000 Hz | Busy-Wait Synchronized");
+    Serial.println("=========================================================");
+
+    // Perform an initial scan across two hardware averaging configurations:
+    // 1. No hardware averaging (1 sample)
+    // 2. Hardware averaging (16 samples)
+    run_data_acquisition(1);
+    delay(2000);
+    run_data_acquisition(16);
 }
 
 void loop(void) {
-    // Dispatcher loop matching Williams Ch 4.7
-    for (slot = 0; slot < SLOTX; slot++) {
-        char slot_hdr[32];
-        snprintf(slot_hdr, sizeof(slot_hdr), ">>> Starting Slot %d <<<", slot);
-        Serial.println(slot_hdr);
-        
-        for (cycle = 0; cycle < CYCLEX; cycle++) {
-            (*ttable[slot][cycle])(); // Dispatch next task from table
+    // Keep board alive; user can trigger another capture by typing 'r' or entering text
+    if (Serial.available()) {
+        char ch = Serial.read();
+        if (ch == 'r' || ch == 'R') {
+            run_data_acquisition(1);
+            delay(1000);
+            run_data_acquisition(16);
         }
     }
 }
